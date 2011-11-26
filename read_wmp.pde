@@ -1,8 +1,8 @@
 #include <Wire.h>
 
 const int baud = 19200;
-const float wmpSlowToDegreePerSec = 20.0;
-const float wmpFastToDegreePerSec = 20.0;
+const float wmpToDegreesPerSec = 16.0;
+const float wmpFastMultiplier = 4.0;
 const float frameToSec = 0.001;      // Acceleration is represented by degs/sec, but we update in ms instead of 1s (1000ms)
 const int updateInterval = 10;
 const int printInterval = 1000;
@@ -13,9 +13,12 @@ unsigned long lastUpdate = 0;
 unsigned long lastPrint = 0;
 
 byte data[6]; //six data bytes
-float yaw, pitch, roll; //three axes
+int yaw, pitch, roll; //three axes
 
 bool slowYaw, slowPitch, slowRoll;
+
+float slowPitchVal = 0.0;
+float fastPitchVal = 0.0;
 
 float yawZero, pitchZero, rollZero = 0.0;
 float yawVelocity, pitchVelocity, rollVelocity = 0.0;
@@ -58,8 +61,8 @@ void receiveYawPitchRoll(){
   receiveData();
   
   yaw=((data[3]>>2)<<8)+data[0]; 
-  pitch=((data[4]>>2)<<8)+data[1]; 
-  roll=((data[5]>>2)<<8)+data[2]; 
+  pitch=((data[5]>>2)<<8)+data[2]; 
+  roll=((data[4]>>2)<<8)+data[1]; 
   
   slowYaw = data[3] & 2;
   slowPitch = data[3] & 1;
@@ -69,9 +72,9 @@ void receiveYawPitchRoll(){
 void receiveVelocity() {
   receiveYawPitchRoll();
   
-  yawVelocity = slowYaw ? yaw / wmpSlowToDegreePerSec : yaw / wmpFastToDegreePerSec;
-  pitchVelocity = slowPitch ? pitch / wmpSlowToDegreePerSec : pitch / wmpFastToDegreePerSec;
-  rollVelocity = slowRoll? roll / wmpSlowToDegreePerSec : roll / wmpFastToDegreePerSec;
+  yawVelocity = yaw / wmpToDegreesPerSec;
+  pitchVelocity = pitch / wmpToDegreesPerSec;
+  rollVelocity = roll / wmpToDegreesPerSec;
 }
 
 void receiveRelativeVelocity() {
@@ -80,6 +83,10 @@ void receiveRelativeVelocity() {
   yawVelocity -= yawZero;
   pitchVelocity -= pitchZero;
   rollVelocity -= rollZero;
+  
+  if (!slowYaw) yawVelocity *= wmpFastMultiplier;
+  if (!slowPitch) pitchVelocity *= wmpFastMultiplier;
+  if (!slowRoll) rollVelocity *= wmpFastMultiplier;
 }
 
 void receivePosition(unsigned long frame) {
