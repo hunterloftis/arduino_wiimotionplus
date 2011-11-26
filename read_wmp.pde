@@ -2,7 +2,7 @@
 
 const int baud = 19200;
 const float wmpSlowToDegreePerSec = 20.0;
-const float wmpFastToDegreePerSec = 4.0;
+const float wmpFastToDegreePerSec = 20.0;
 const float frameToSec = 0.001;      // Acceleration is represented by degs/sec, but we update in ms instead of 1s (1000ms)
 const int updateInterval = 10;
 const int printInterval = 1000;
@@ -18,7 +18,6 @@ float yaw, pitch, roll; //three axes
 bool slowYaw, slowPitch, slowRoll;
 
 float yawZero, pitchZero, rollZero = 0.0;
-float yawAcceleration, pitchAcceleration, rollAcceleration = 0.0;
 float yawVelocity, pitchVelocity, rollVelocity = 0.0;
 float yawPosition, pitchPosition, rollPosition = 0.0;
 
@@ -47,10 +46,10 @@ void receiveData() {
 void calibrateZeroes(){
   delay(500);
   for (int i=0;i<calibrations;i++){
-    receiveAcceleration();
-    yawZero += yawAcceleration / calibrations;
-    pitchZero += pitchAcceleration / calibrations;
-    rollZero += rollAcceleration / calibrations;
+    receiveVelocity();
+    yawZero += yawVelocity / calibrations;
+    pitchZero += pitchVelocity / calibrations;
+    rollZero += rollVelocity / calibrations;
     delay(50);
   }
 }
@@ -67,36 +66,24 @@ void receiveYawPitchRoll(){
   slowRoll = data[4] & 2;
 }
 
-void receiveAcceleration() {
+void receiveVelocity() {
   receiveYawPitchRoll();
   
-  yawAcceleration = slowYaw ? yaw / wmpSlowToDegreePerSec : yaw / wmpFastToDegreePerSec;
-  pitchAcceleration = slowPitch ? pitch / wmpSlowToDegreePerSec : pitch / wmpFastToDegreePerSec;
-  rollAcceleration = slowRoll? roll / wmpSlowToDegreePerSec : roll / wmpFastToDegreePerSec;
+  yawVelocity = slowYaw ? yaw / wmpSlowToDegreePerSec : yaw / wmpFastToDegreePerSec;
+  pitchVelocity = slowPitch ? pitch / wmpSlowToDegreePerSec : pitch / wmpFastToDegreePerSec;
+  rollVelocity = slowRoll? roll / wmpSlowToDegreePerSec : roll / wmpFastToDegreePerSec;
 }
 
-void receiveRelativeAcceleration() {
-  receiveAcceleration();
+void receiveRelativeVelocity() {
+  receiveVelocity();
   
-  yawAcceleration -= yawZero;
-  pitchAcceleration -= pitchZero;
-  rollAcceleration -= rollZero;
-}
-
-void receiveVelocity(unsigned long frame) {
- receiveRelativeAcceleration();
- 
- float toSec = frame * frameToSec;
- 
- // Integrate acceleration into velocity
- 
- yawVelocity += yawAcceleration * toSec;
- pitchVelocity += pitchAcceleration * toSec;
- rollVelocity += rollAcceleration * toSec;
+  yawVelocity -= yawZero;
+  pitchVelocity -= pitchZero;
+  rollVelocity -= rollZero;
 }
 
 void receivePosition(unsigned long frame) {
-  receiveVelocity(frame);
+  receiveRelativeVelocity();
 
   float toSec = frame * frameToSec;
  
@@ -127,16 +114,6 @@ void printVelocity() {
   Serial.println(rollVelocity);  
 }
 
-void printAcceleration() {
-  Serial.print("ACCEL --");
-  Serial.print("yaw:");//see diagram on randomhacksofboredom.blogspot.com
-  Serial.print(yawAcceleration); //for info on which axis is which
-  Serial.print(" pitch:");
-  Serial.print(pitchAcceleration);
-  Serial.print(" roll:");
-  Serial.println(rollAcceleration);  
-}
-
 void printZeroes() {
   Serial.print("ZERO  --");
   Serial.print("yaw:");//see diagram on randomhacksofboredom.blogspot.com
@@ -158,7 +135,7 @@ void printYawPitchRoll() {
 }
 
 void printError() {
-  float frame = abs(yawAcceleration) + abs(pitchAcceleration) + abs(rollAcceleration); 
+  float frame = abs(yawVelocity) + abs(pitchVelocity) + abs(rollVelocity); 
   float total = abs(yawPosition) + abs(pitchPosition) + abs(rollPosition);
   Serial.print("ERROR --");
   Serial.print("frame:");
@@ -203,7 +180,6 @@ void loop(){
     Serial.println("=====");
     printYawPitchRoll();    
     printZeroes();
-    printAcceleration();
     printVelocity();
     printPosition();
     printError();
