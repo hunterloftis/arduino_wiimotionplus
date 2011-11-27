@@ -30,7 +30,7 @@ class WiiMotionPlus {
       data[i] = (byte)Wire.receive();
     }
   }
-
+  
 };
 
 #endif

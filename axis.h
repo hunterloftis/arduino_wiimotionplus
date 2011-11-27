@@ -13,7 +13,6 @@ class Axis {
   int calibrations;
   
   int value;
-  
   float zero;
   float velocity;
   float position;
@@ -25,7 +24,7 @@ class Axis {
     calibrations = 0;
   }
   
-  void calibrate(int val, boolean slow, boolean log) {
+  void calibrate(int val, boolean slow) {
     zero = zero * ((float)calibrations / (calibrations + 1));
     calibrations++;
     float velocity0 = inverted ? -val / wmpToDegreesPerSec : val / wmpToDegreesPerSec;
@@ -33,13 +32,11 @@ class Axis {
     zero += (float)velocity0 / calibrations;
   }
   
-  void update(int val, boolean slow, int frame, boolean log) {
+  void update(int val, boolean slow, unsigned long frame) {
     value = val;
     velocity = inverted ? -val / wmpToDegreesPerSec - zero : val / wmpToDegreesPerSec - zero;
     if (!slow) velocity *= wmpFastMultiplier;
     position += velocity * frame * .001;
-    if (log) {
-    }
   }
     
 };

@@ -32,7 +32,7 @@ void loop() {
   unsigned long now = millis();
   if (now - last_message > message_interval) {
     wmc.getPosition(pos);
-    sendMessage(pos[3], pos[4], pos[5]);
+    //sendMessage(pos[3], pos[4], pos[5]);
     last_message = now;
   }
 }

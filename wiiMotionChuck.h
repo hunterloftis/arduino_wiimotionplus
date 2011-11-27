@@ -10,6 +10,7 @@ class WiiMotionChuck {
   
   int updateInterval;
   int passthroughInterval;
+  boolean passthrough;
   int calibrations;
   boolean debug;
 
@@ -23,6 +24,7 @@ class WiiMotionChuck {
   WiiMotionChuck() {
     updateInterval = 10;
     passthroughInterval = 3;
+    passthrough = false;
     calibrations = 10;
     debug = false;
     lastUpdate = 0;
@@ -50,9 +52,9 @@ class WiiMotionChuck {
     for (int i = 0; i < calibrations; i++){
       wmp.sendZero();
       wmp.receiveData(data);
-      axis[0].calibrate( ((data[3] >> 2) << 8) + data[0], data[3] & 2, false); // Yaw
-      axis[1].calibrate( ((data[5] >> 2) << 8) + data[2], data[3] & 1, false); // Pitch
-      axis[2].calibrate( ((data[4] >> 2) << 8) + data[1], data[4] & 2, false); // Roll
+      axis[0].calibrate( ((data[3] >> 2) << 8) + data[0], data[3] & 2); // Yaw
+      axis[1].calibrate( ((data[5] >> 2) << 8) + data[2], data[3] & 1); // Pitch
+      axis[2].calibrate( ((data[4] >> 2) << 8) + data[1], data[4] & 2); // Roll
       delay(50);
     }
   }
@@ -60,21 +62,50 @@ class WiiMotionChuck {
   void update() {
     unsigned long now = millis();
     unsigned long frame = now - lastUpdate;
-    if (frame >= updateInterval) {
+    if (passthrough && frame > passthroughInterval) {
+      wmp.receiveData(data);
+
+    }
+    else if (frame >= updateInterval) {
+      wmp.sendZero();
+      wmp.receiveData(data);
+    }
+    else return;
+    parseNewData(frame);
+    passthrough = !passthrough;
+    lastUpdate = now;
+  }
+
+  void parseNewData(unsigned long frame) {
+    if (data[5] && 1) {  // Motion plus data
       update_rotation(frame);
-      lastUpdate = now;
-    } 
+    }  
+    else {  // Extension (nunchuck) data
+      update_direction(frame);
+    }
   }
   
-  void update_rotation(float frame) {
-    
-    wmp.sendZero();
-    wmp.receiveData(data);
-    
-    axis[0].update( ((data[3] >> 2) << 8) + data[0], data[3] & 2, frame, true); // Yaw
-    axis[1].update( ((data[5] >> 2) << 8) + data[2], data[3] & 1, frame, false); // Pitch
-    axis[2].update( ((data[4] >> 2) << 8) + data[1], data[4] & 2, frame, false); // Roll
-
+  void update_rotation(unsigned long frame) {
+    axis[0].update( ((data[3] >> 2) << 8) + data[0], data[3] & 2, frame); // Yaw
+    axis[1].update( ((data[5] >> 2) << 8) + data[2], data[3] & 1, frame); // Pitch
+    axis[2].update( ((data[4] >> 2) << 8) + data[1], data[4] & 2, frame); // Roll
+  }
+  
+  void update_direction(unsigned long frame) {
+    for (int i = 0; i < 6; i++) {
+      Serial.println(data[i]);
+    }
+    /*
+    int ax = data[2] << 1 + data[5] && 4;
+    int ay = data[3] << 1 + data[5] && 5;
+    int az = data[4] << 2 + (data[5] && 7) << 1 + data[5] && 6;
+    Serial.print("ax: ");
+    Serial.print(ax);
+    Serial.print(", ay: ");
+    Serial.print(ay);
+    Serial.print(", az: ");
+    Serial.println(az);
+    */
   }
   
   void getPosition(float pos[]) {
