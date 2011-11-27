@@ -2,148 +2,95 @@
 #define __WIIMOTIONCHUCK_H__
 
 #include "WProgram.h"
-#include <Wire.h>
+#include "wmp.h"
+#include "axis.h"
 
 class WiiMotionChuck {
   public:
   
-  float wmpToDegreesPerSec;
-  float wmpFastMultiplier;
-  float frameToSec;
   int updateInterval;
   int calibrations;
   boolean debug;
 
   unsigned long lastUpdate;
   
+  WiiMotionPlus wmp;
   byte data[6];
-  int yaw, pitch, roll;
-  
-  boolean slowYaw, slowPitch, slowRoll;
-  boolean invertYaw, invertPitch, invertRoll;
-  
-  float yawZero, pitchZero, rollZero;
-  float yawVelocity, pitchVelocity, rollVelocity;
-  float yawPosition, pitchPosition, rollPosition;
-
+  Axis axis[3];
+  static const int axis_length = 3;
+    
   WiiMotionChuck() {
-    wmpToDegreesPerSec = 16.0;
-    wmpFastMultiplier = 4.0;
-    frameToSec = 0.001;
     updateInterval = 10;
     calibrations = 10;
     debug = false;
     lastUpdate = 0;
-    yawZero = pitchZero = rollZero = 0.0;
-    yawVelocity = pitchVelocity = rollVelocity = 0.0;
-    yawPosition = pitchPosition = rollPosition = 0.0;
-    Wire.begin();
   }
   
-  void start() {
-    wmpOn();
-  }
-  
-  void invert(boolean yaw, boolean pitch, boolean roll) {
-    
+  void invert(int index, boolean inverted) {
+    axis[index].inverted = inverted;
   }
   
   void interval(int i) {
     updateInterval = i;  
   }
   
+  void start() {
+    wmp.activate();
+  }
+  
   void calibrate() {
     calibrateZeroes();  
+  }
+  
+  void calibrateZeroes(){
+    byte data[6];
+    delay(500);
+    for (int i = 0; i < calibrations; i++){
+      wmp.sendZero();
+      wmp.receiveData(data);
+      axis[0].calibrate( ((data[3] >> 2) << 8) + data[0], data[3] & 2, false); // Yaw
+      axis[1].calibrate( ((data[5] >> 2) << 8) + data[2], data[3] & 1, false); // Pitch
+      axis[2].calibrate( ((data[4] >> 2) << 8) + data[1], data[4] & 2, false); // Roll
+      delay(50);
+    }
   }
   
   void update() {
     unsigned long now = millis();
     unsigned long frame = now - lastUpdate;
     if (frame >= updateInterval) {
-      receivePosition(frame);
+      update_rotation(frame);
       lastUpdate = now;
     } 
   }
   
-  float* getPosition() {
-    float pos[] = {10, 11, 12, yawPosition, pitchPosition, rollPosition};  
-    return pos;
-  }
-  
-  void wmpOn(){
-    Wire.beginTransmission(0x53); //WM+ starts out deactivated at address 0x53
-    Wire.send(0xfe); //send 0x04 to address 0xFE to activate WM+
-    Wire.send(0x05);  // pass-through mode
-    Wire.endTransmission(); //WM+ jumps to address 0x52 and is now active
-  }
-  
-  void wmpSendZero(){
-    Wire.beginTransmission(0x52); //now at address 0x52
-    Wire.send(0x00); //send zero to signal we want info
-    Wire.endTransmission();
-  }
-  
-  void receiveData() {
-    wmpSendZero(); //send zero before each request (same as nunchuck)
-    Wire.requestFrom(0x52,6); //request the six bytes from the WM+
-    for (int i=0;i<6;i++){
-      data[i]=Wire.receive();
-    }
-  }
-  
-  void calibrateZeroes(){
-    delay(500);
-    for (int i=0;i<calibrations;i++){
-      receiveVelocity();
-      yawZero += yawVelocity / calibrations;
-      pitchZero += pitchVelocity / calibrations;
-      rollZero += rollVelocity / calibrations;
-      delay(50);
-    }
-  }
-  
-  void receiveYawPitchRoll(){
-    receiveData();
+  void update_rotation(float frame) {
     
-    yaw=((data[3]>>2)<<8)+data[0]; 
-    pitch=((data[5]>>2)<<8)+data[2]; 
-    roll=((data[4]>>2)<<8)+data[1]; 
+    wmp.sendZero();
+    wmp.receiveData(data);
     
-    slowYaw = data[3] & 2;
-    slowPitch = data[3] & 1;
-    slowRoll = data[4] & 2;
+    axis[0].update( ((data[3] >> 2) << 8) + data[0], data[3] & 2, frame, true); // Yaw
+    axis[1].update( ((data[5] >> 2) << 8) + data[2], data[3] & 1, frame, false); // Pitch
+    axis[2].update( ((data[4] >> 2) << 8) + data[1], data[4] & 2, frame, false); // Roll
+
   }
   
-  void receiveVelocity() {
-    receiveYawPitchRoll();
-    
-    yawVelocity = yaw / wmpToDegreesPerSec;
-    pitchVelocity = pitch / wmpToDegreesPerSec;
-    rollVelocity = roll / wmpToDegreesPerSec;
+  void getPosition(float pos[]) {
+    pos[3] = axis[0].position;
+    pos[4] = axis[1].position;
+    pos[5] = axis[2].position;
   }
   
-  void receiveRelativeVelocity() {
-    receiveVelocity();
-    
-    yawVelocity -= yawZero;
-    pitchVelocity -= pitchZero;
-    rollVelocity -= rollZero;
-    
-    if (!slowYaw) yawVelocity *= wmpFastMultiplier;
-    if (!slowPitch) pitchVelocity *= wmpFastMultiplier;
-    if (!slowRoll) rollVelocity *= wmpFastMultiplier;
+  void getVelocity(float vel[]) {
+    vel[3] = axis[0].velocity;
+    vel[4] = axis[1].velocity;
+    vel[5] = axis[2].velocity;
   }
   
-  void receivePosition(unsigned long frame) {
-    receiveRelativeVelocity();
-  
-    float toSec = frame * frameToSec;
-   
-    // Integrete velocity into position
-    
-    yawPosition += yawVelocity * toSec;
-    pitchPosition += pitchVelocity * toSec;
-    rollPosition += rollVelocity * toSec;  
+  void getValue(int val[]) {
+    val[3] = axis[0].value;
+    val[4] = axis[1].value;
+    val[5] = axis[2].value;
   }
 
 };
