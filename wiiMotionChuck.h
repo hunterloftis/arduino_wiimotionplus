@@ -9,6 +9,7 @@ class WiiMotionChuck {
   public:
   
   int updateInterval;
+  int passthroughInterval;
   int calibrations;
   boolean debug;
 
@@ -21,6 +22,7 @@ class WiiMotionChuck {
     
   WiiMotionChuck() {
     updateInterval = 10;
+    passthroughInterval = 3;
     calibrations = 10;
     debug = false;
     lastUpdate = 0;
