@@ -23,7 +23,7 @@ void setup(){
   wmc.invert(0, true);  // Pitch sensor is inverted
   wmc.invert(1, true);  // Yaw sensor is inverted
   wmc.start();
-  wmc.calibrate();
+  //wmc.calibrate();
 }
 
 void loop() {

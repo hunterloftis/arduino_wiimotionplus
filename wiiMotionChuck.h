@@ -64,7 +64,6 @@ class WiiMotionChuck {
     unsigned long frame = now - lastUpdate;
     if (passthrough && frame > passthroughInterval) {
       wmp.receiveData(data);
-
     }
     else if (frame >= updateInterval) {
       wmp.sendZero();
@@ -77,10 +76,12 @@ class WiiMotionChuck {
   }
 
   void parseNewData(unsigned long frame) {
-    if (data[5] && 1) {  // Motion plus data
+    if ((data[5] & 0x03) == 0x02) {  // Motion plus data
+      Serial.println("WMP Data");
       update_rotation(frame);
     }  
-    else {  // Extension (nunchuck) data
+    else if ((data[5] & 0x02) == 0x00) {  // Extension (nunchuck) data
+      Serial.println("Nunchuk Data");
       update_direction(frame);
     }
   }
@@ -93,19 +94,18 @@ class WiiMotionChuck {
   
   void update_direction(unsigned long frame) {
     for (int i = 0; i < 6; i++) {
-      Serial.println(data[i]);
+      //Serial.println(data[i]);
     }
-    /*
-    int ax = data[2] << 1 + data[5] && 4;
-    int ay = data[3] << 1 + data[5] && 5;
-    int az = data[4] << 2 + (data[5] && 7) << 1 + data[5] && 6;
+    int ax = (data[2] << 2) | ((data[5] >> 3) & 0x02);
+    int ay = (data[3] << 2) | ((data[5] >> 4) & 0x02);
+    int az = ((data[4] >> 1) << 3) | ((data[5] >> 5) & 0x06);
     Serial.print("ax: ");
     Serial.print(ax);
     Serial.print(", ay: ");
     Serial.print(ay);
     Serial.print(", az: ");
     Serial.println(az);
-    */
+    
   }
   
   void getPosition(float pos[]) {

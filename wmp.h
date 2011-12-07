@@ -12,10 +12,15 @@ class WiiMotionPlus {
   }
   
   void activate(){
+    delay(250);
     Wire.beginTransmission(0x53); // WM+ starts out deactivated at address 0x53
+    delay(250);
     Wire.send(0xfe); // send 0x05 to address 0xFE to activate WM+
+    delay(250);
     Wire.send(0x05);  // pass-through mode (normal mode is 0x04)
+    delay(250);
     Wire.endTransmission(); // WM+ jumps to address 0x52 and is now active
+    delay(250);
   }
   
   void sendZero(){
