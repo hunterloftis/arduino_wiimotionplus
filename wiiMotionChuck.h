@@ -14,6 +14,9 @@ class WiiMotionChuck {
   int calibrations;
   boolean debug;
 
+  static const int NC = 0x00;
+  static const int MP = 0x02;
+  
   unsigned long lastUpdate;
   
   WiiMotionPlus wmp;
@@ -62,28 +65,28 @@ class WiiMotionChuck {
   void update() {
     unsigned long now = millis();
     unsigned long frame = now - lastUpdate;
-    if (passthrough && frame > passthroughInterval) {
-      wmp.receiveData(data);
-    }
-    else if (frame >= updateInterval) {
+    if (frame >= updateInterval) {
       wmp.sendZero();
       wmp.receiveData(data);
+      parseData(frame);
+      lastUpdate = now;
     }
-    else return;
-    parseNewData(frame);
-    passthrough = !passthrough;
-    lastUpdate = now;
   }
 
-  void parseNewData(unsigned long frame) {
-    if ((data[5] & 0x03) == 0x02) {  // Motion plus data
+  void parseData(unsigned long frame) {
+    boolean extension_connected = ((data[4] & 0x01) == 0x01);
+    int current_device = data[5] & 0x03;
+    if (extension_connected == 0) {
+      Serial.println("No extension connected");
+    }
+    if (current_device == MP) {  // Motion plus data
       Serial.println("WMP Data");
       update_rotation(frame);
-    }  
-    else if ((data[5] & 0x02) == 0x00) {  // Extension (nunchuck) data
-      Serial.println("Nunchuk Data");
-      update_direction(frame);
     }
+    else if (current_device == NC) {  // Nunchuk data
+      Serial.println("Nunchuk Data");
+      update_direction(frame);      
+    }  
   }
   
   void update_rotation(unsigned long frame) {
@@ -96,9 +99,10 @@ class WiiMotionChuck {
     for (int i = 0; i < 6; i++) {
       //Serial.println(data[i]);
     }
-    int ax = (data[2] << 2) | ((data[5] >> 3) & 0x02);
-    int ay = (data[3] << 2) | ((data[5] >> 4) & 0x02);
-    int az = ((data[4] >> 1) << 3) | ((data[5] >> 5) & 0x06);
+    return;
+    int ax = data[2]; //(data[2] << 2) | ((data[5] >> 3) & 0x02);
+    int ay = data[3]; //(data[3] << 2) | ((data[5] >> 4) & 0x02);
+    int az = data[4] >> 1; //((data[4] >> 1) << 3) | ((data[5] >> 5) & 0x06);
     Serial.print("ax: ");
     Serial.print(ax);
     Serial.print(", ay: ");
